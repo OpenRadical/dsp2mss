@@ -26,6 +26,13 @@ int convert(char* inName) {
 
     // Headers
     char ourHead[0xC0] = { 0 };
+    // basic mono DSP subheader (should be empty)
+    const char dspHead[0x20] = { 0 };
+    // basic stereo DSP subheader
+    const char sdspHead[0x20] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x04, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    };
     // MSS subheader (from TS2 mss files)
     const char mssHead[0x20] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x53, 0x00, 0x60, 0xA9, 0x40, 0x00,
@@ -44,20 +51,25 @@ int convert(char* inName) {
 
     printf("\nInput file:  %s\nOutput file: %s\n", inName, outName);
 
-    if (!(p_inFile = fopen(inName, "rb"))) { openerror(inName); return 1; }
-    if (!(p_outFile = fopen(outName, "wb"))) { openerror(outName); return 1; }
+    if (!(p_inFile = fopen(inName, "rb"))) { openerror(inName); return 1; };
+    if (!(p_outFile = fopen(outName, "wb"))) { openerror(outName); return 1; };
 
-    printf("creating header... ");
-
+    printf("Checking DSP header... ");
+    int check = 0;
     fread(ourHead, sizeof(ourHead), 1, p_inFile);
+    check += memcmp(ourHead + 0x40, sdspHead, sizeof(dspHead));
+    if (check != 0) { printf("left channel header not basic DSP format!"); return 1; };
+    check += memcmp(ourHead + 0xA0, sdspHead, sizeof(dspHead));
+    if (check != 0) { printf("right channel header not basic DSP format or mono file!"); return 1; };
+
+    printf("done!\nPatching header for MSS format...");
     // Fix header for MSS
     memcpy(ourHead + 0x40, mssHead, sizeof(mssHead));
     memcpy(ourHead + 0xA0, mssHead, sizeof(mssHead));
-
     // Write header to output file
     fwrite(ourHead, sizeof(ourHead), 1, p_outFile);
 
-    printf("done!\nre-interleaving... ");
+    printf("done!\nRe-interleaving audio... ");
 
     // Interleave all but last chunk
     for (unsigned long c = 0; c < (read32(ourHead + 0x04)) / 0x4000; c++) {
