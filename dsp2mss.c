@@ -12,15 +12,14 @@ unsigned long read32(unsigned char* inWord) {
 };
 
 void usage(char* name) {
-    printf("Usage: %s music.dsp [music.mss]\n", name);
+    printf("Usage: %s music.dsp [music2.dsp...]\n", name);
 };
 
 void openerror(char* name) {
     printf("error opening %s\n", name);
 };
 
-int main(int argc, char** argV) {
-
+int convert(char* inName) {
     // Input/output file pointers
     FILE* p_inFile;
     FILE* p_outFile;
@@ -34,30 +33,21 @@ int main(int argc, char** argV) {
     };
     char inBuffer[0x4000] = { 0 };
     char outBuffer[0x4000] = { 0 };
-
-    printf("dsp2mss - VGAudio stereo DSP to stereo MSS converter\nby stealthii\nhttps://timesplitters.dev\n\n");
-
-    // Usage help
-    if (argc < 2 || argc > 3) { usage(argV[0]); return 1; }
-
     char outName[FILENAME_MAX] = { 0 };
-    if (argc == 2) {
-        // Change file extension of input file to .mss for output file
-        strcpy(outName, argV[1]);
-        const char ext[] = ".mss";
-        char* p_ext;
-        p_ext = strrchr(outName, *ext);
-        sprintf(p_ext, ext);
-    }
-    else {
-        // Use second argument as output filename
-        strcpy(outName, argV[2]);
-    };
 
-    if (!(p_inFile = fopen(argV[1], "rb"))) { openerror(argV[1]); return 1; }
-    if (!(p_outFile = fopen(outName, "wb"))) { openerror(argV[2]); return 1; }
+    // Change file extension of input file to .mss for output file
+    strcpy(outName, inName);
+    const char ext[] = ".mss";
+    char* p_ext;
+    p_ext = strrchr(outName, *ext);
+    sprintf(p_ext, ext);
 
-    printf("creating header...");
+    printf("\nInput file:  %s\nOutput file: %s\n", inName, outName);
+
+    if (!(p_inFile = fopen(inName, "rb"))) { openerror(inName); return 1; }
+    if (!(p_outFile = fopen(outName, "wb"))) { openerror(outName); return 1; }
+
+    printf("creating header... ");
 
     fread(ourHead, sizeof(ourHead), 1, p_inFile);
     // Fix header for MSS
@@ -67,7 +57,7 @@ int main(int argc, char** argV) {
     // Write header to output file
     fwrite(ourHead, sizeof(ourHead), 1, p_outFile);
 
-    printf("done!\nre-interleaving stereo for DSP to MSS conversion...");
+    printf("done!\nre-interleaving... ");
 
     // Interleave all but last chunk
     for (unsigned long c = 0; c < (read32(ourHead + 0x04)) / 0x4000; c++) {
@@ -112,10 +102,26 @@ int main(int argc, char** argV) {
     // write out final chunk
     fwrite(outBuffer, 0x4000, 1, p_outFile);
 
-    printf("done!\nOutput to %s.", outName);
+    printf("done!\nConverted successfully.\n");
 
     fclose(p_inFile);
     fclose(p_outFile);
 
     return 0;
+};
+
+int main(int argc, char* argv[]) {
+
+    printf("\ndsp2mss - VGAudio stereo DSP to stereo MSS converter\nAuthor: stealthii\nSite: https://timesplitters.dev\n\n");
+
+    // Usage help
+    if (argc < 2) { usage(argv[0]); return 1; }
+
+    // Convert all files passed as arguments
+    int ret = 0;
+    for (char** p_argv = argv + 1; *p_argv != argv[argc]; p_argv++) {
+        ret += convert(*p_argv);
+    };
+
+    return ret;
 };
